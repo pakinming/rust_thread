@@ -1,0 +1,66 @@
+use tokio::process::Command;
+use std::net::Ipv4Addr;
+use std::env;
+use futures::future;
+
+#[tokio::main]
+async fn main() {
+    let network = Ipv4Addr::new(192, 168, 1, 0); // เริ่มต้นช่วง IP
+    let subnet_mask = 22;
+
+    // คำนวณจำนวน IP ที่ต้องตรวจสอบ
+    let total_ips = 2_u32.pow(32 - subnet_mask);
+
+    println!("Scanning {} IPs in network {}/{}", total_ips, network, subnet_mask);
+
+    // สร้างช่วง IP ทั้งหมด
+    let ips: Vec<Ipv4Addr> = (0..total_ips)
+        .map(|offset| Ipv4Addr::from(u32::from(network) + offset))
+        .collect();
+
+    // สแกนแบบ Parallel ด้วย async
+    let online_ips: Vec<Ipv4Addr> = future::join_all(ips.into_iter().map(|ip| ping(ip)))
+        .await
+        .into_iter()
+        .filter_map(|(ip, success)| if success { Some(ip) } else { None })
+        .collect();
+
+    println!("\n--- Online Devices async ---");
+    for ip in online_ips {
+        println!("{}", ip);
+    }
+}
+
+// ฟังก์ชัน Ping
+async fn ping(ip: Ipv4Addr) -> (Ipv4Addr, bool) {
+    // println!("Pinging: {}", ip);
+
+    // ตรวจสอบว่าเป็นระบบปฏิบัติการ Windows หรือไม่
+    let is_windows = env::consts::OS == "windows";
+    let command = if is_windows {
+        // คำสั่ง Ping บน Windows
+        Command::new("ping")
+            .arg("-n")
+            .arg("1")
+            .arg("-w")
+            .arg("1000") // ตั้ง Timeout 1 วินาที
+            .arg(ip.to_string())
+            .output()
+            .await
+    } else {
+        // คำสั่ง Ping บน Linux/MacOS
+        Command::new("ping")
+            .arg("-c")
+            .arg("1")
+            .arg("-W")
+            .arg("1") // ตั้ง Timeout 1 วินาที
+            .arg(ip.to_string())
+            .output()
+            .await
+    };
+
+    match command {
+        Ok(output) => (ip, output.status.success()),
+        Err(_) => (ip, false),
+    }
+}

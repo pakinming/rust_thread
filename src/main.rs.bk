@@ -1,0 +1,69 @@
+use std::process::Command;
+use rayon::prelude::*;
+use std::net::Ipv4Addr;
+use std::env;
+
+fn main() {
+    let network = Ipv4Addr::new(192, 168, 1, 0); // เริ่มต้นช่วง IP
+    let subnet_mask = 22;
+
+    // คำนวณจำนวน IP ที่ต้องตรวจสอบ
+    let total_ips = 2_u32.pow(32 - subnet_mask);
+
+    println!("Scanning {} IPs in network {}/{}", total_ips, network, subnet_mask);
+
+    // สร้างช่วง IP ทั้งหมด
+    let ips: Vec<Ipv4Addr> = (0..total_ips)
+        .map(|offset| Ipv4Addr::from(u32::from(network) + offset))
+        .collect();
+
+    // สแกนแบบ Parallel ด้วย Rayon
+    let online_ips: Vec<Ipv4Addr> = ips
+        .par_iter()
+        .filter_map(|ip| {
+            if ping(ip) {
+                // println!("Online: {}", ip);
+                Some(*ip)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    println!("\n--- Online Devices ---");
+    for ip in online_ips {
+        println!("{}", ip);
+    }
+}
+
+// ฟังก์ชัน Ping
+fn ping(ip: &Ipv4Addr) -> bool {
+    println!("Pinging: {}", ip);
+
+    // ตรวจสอบว่าเป็นระบบปฏิบัติการ Windows หรือไม่
+    let is_windows = env::consts::OS == "windows";
+    let command = if is_windows {
+        // คำสั่ง Ping บน Windows
+        Command::new("ping")
+            .arg("-n")
+            .arg("1")
+            .arg("-w")
+            .arg("1000") // ตั้ง Timeout 1 วินาที
+            .arg(ip.to_string())
+            .output()
+    } else {
+        // คำสั่ง Ping บน Linux/MacOS
+        Command::new("ping")
+            .arg("-c")
+            .arg("1")
+            .arg("-W")
+            .arg("1") // ตั้ง Timeout 1 วินาที
+            .arg(ip.to_string())
+            .output()
+    };
+
+    match command {
+        Ok(output) => output.status.success(),
+        Err(_) => false,
+    }
+}

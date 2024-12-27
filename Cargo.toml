@@ -1,0 +1,17 @@
+[package]
+name = "ping_device_parallel"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+core_affinity = "0.8.1"
+futures = "0.3.31"
+rayon = "1.10.0"
+rayon-core = "1.12.1"
+
+# add members async_ping
+[workspace]
+members = [
+    "async_ping", "mpsc_ch","mpsc_ch"
+   
+]

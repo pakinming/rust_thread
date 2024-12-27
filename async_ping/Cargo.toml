@@ -1,0 +1,9 @@
+[package]
+name = "async_ping"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futures = "0.3.31"
+tokio = { version = "1.42.0", features = ["full"] }
+use = "0.0.1-pre.0"
